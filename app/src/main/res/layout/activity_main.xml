@@ -61,6 +61,7 @@
                         android:alpha="0.9"/>
 
                     <TextView
+                        android:id="@+id/tvBalance"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="KES 0.00"
@@ -103,6 +104,7 @@
                             android:textColor="#666666"/>
 
                         <TextView
+                            android:id="@+id/tvTodaySpending"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="KES 0.00"
@@ -135,6 +137,7 @@
                             android:textColor="#666666"/>
 
                         <TextView
+                            android:id="@+id/tvWeekSpending"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="KES 0.00"
@@ -156,6 +159,7 @@
                 android:layout_marginBottom="12dp"/>
 
             <TextView
+                android:id="@+id/tvNoTransactions"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="No transactions yet"

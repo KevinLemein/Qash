@@ -1,28 +1,35 @@
 package com.example.qash;
 
 import android.os.Bundle;
-
-import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.RadioButton;
 import android.widget.Spinner;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
-import com.google.android.material.textfield.TextInputEditText;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class AddTransaction extends AppCompatActivity {
 
-    private TextInputEditText etAmount, etDescription;
+    private EditText etAmount, etDescription;
     private Spinner spinnerCategory;
     private RadioButton rbExpense, rbIncome;
     private Button btnSave, btnCancel;
+
+    private AppDatabase database;
+    private ExecutorService executorService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_transaction);
+
+        // Initialize database
+        database = AppDatabase.getInstance(this);
+        executorService = Executors.newSingleThreadExecutor();
 
         // Initialize views
         etAmount = findViewById(R.id.etAmount);
@@ -44,7 +51,6 @@ public class AddTransaction extends AppCompatActivity {
     }
 
     private void setupCategorySpinner() {
-        // Categories array
         String[] categories = {
                 "Transport",
                 "Food & Groceries",
@@ -56,15 +62,12 @@ public class AddTransaction extends AppCompatActivity {
                 "Other"
         };
 
-        // Create adapter
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
                 categories
         );
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        // Set adapter to spinner
         spinnerCategory.setAdapter(adapter);
     }
 
@@ -91,17 +94,27 @@ public class AddTransaction extends AppCompatActivity {
         // Convert amount to double
         double amount = Double.parseDouble(amountStr);
 
-        // For now, just show a toast with the data
-        String message = String.format(
-                "Saved!\nType: %s\nAmount: KES %.2f\nCategory: %s\nDescription: %s",
-                type, amount, category, description
-        );
+        // Get current timestamp
+        long currentDate = System.currentTimeMillis();
 
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        // Create transaction object
+        Transaction transaction = new Transaction(amount, description, category, type, currentDate);
 
-        // TODO: Save to database (we'll do this next)
+        // Save to database in background thread
+        executorService.execute(() -> {
+            database.transactionDao().insert(transaction);
 
-        // Close activity
-        finish();
+            // Show success message on main thread
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Transaction saved successfully!", Toast.LENGTH_SHORT).show();
+                finish(); // Close activity and go back to MainActivity
+            });
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executorService.shutdown();
     }
 }
