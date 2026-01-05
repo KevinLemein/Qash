@@ -2,12 +2,14 @@ package com.example.qash;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import androidx.appcompat.app.AlertDialog;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -16,6 +18,8 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity {
 
     private TextView tvBalance, tvTodaySpending, tvWeekSpending, tvNoTransactions;
+    private RecyclerView rvTransactions;
+    private TransactionAdapter adapter;
     private AppDatabase database;
     private ExecutorService executorService;
 
@@ -33,6 +37,17 @@ public class MainActivity extends AppCompatActivity {
         tvTodaySpending = findViewById(R.id.tvTodaySpending);
         tvWeekSpending = findViewById(R.id.tvWeekSpending);
         tvNoTransactions = findViewById(R.id.tvNoTransactions);
+        rvTransactions = findViewById(R.id.rvTransactions);
+
+        // Setup RecyclerView
+        adapter = new TransactionAdapter();
+        rvTransactions.setLayoutManager(new LinearLayoutManager(this));
+        rvTransactions.setAdapter(adapter);
+
+        // Set long-click listener for delete
+        adapter.setOnTransactionLongClickListener(transaction -> {
+            showDeleteConfirmationDialog(transaction);
+        });
 
         FloatingActionButton fabAddTransaction = findViewById(R.id.fabAddTransaction);
 
@@ -59,39 +74,104 @@ public class MainActivity extends AppCompatActivity {
             double totalExpenses = database.transactionDao().getTotalExpenses();
             double balance = totalIncome - totalExpenses;
 
+            // Calculate today's spending
+            long todayStart = getTodayStartTimestamp();
+            long todayEnd = System.currentTimeMillis();
+            List<Transaction> todayTransactions = database.transactionDao()
+                    .getTransactionsByDateRange(todayStart, todayEnd);
+
+            double todaySpending = 0;
+            for (Transaction t : todayTransactions) {
+                if (t.getType().equals("Expense")) {
+                    todaySpending += t.getAmount();
+                }
+            }
+            final double finalTodaySpending = todaySpending;
+
+            // Calculate this week's spending
+            long weekStart = getWeekStartTimestamp();
+            List<Transaction> weekTransactions = database.transactionDao()
+                    .getTransactionsByDateRange(weekStart, todayEnd);
+
+            double weekSpending = 0;
+            for (Transaction t : weekTransactions) {
+                if (t.getType().equals("Expense")) {
+                    weekSpending += t.getAmount();
+                }
+            }
+            final double finalWeekSpending = weekSpending;
+
             // Update UI on main thread
             runOnUiThread(() -> {
                 // Update balance
                 tvBalance.setText(String.format(Locale.getDefault(), "KES %.2f", balance));
 
-                // Show transactions or "No transactions" message
+                // Update today's spending
+                tvTodaySpending.setText(String.format(Locale.getDefault(), "KES %.2f", finalTodaySpending));
+
+                // Update week's spending
+                tvWeekSpending.setText(String.format(Locale.getDefault(), "KES %.2f", finalWeekSpending));
+
+                // Update transactions list
                 if (transactions.isEmpty()) {
-                    tvNoTransactions.setText("No transactions yet");
+                    rvTransactions.setVisibility(View.GONE);
+                    tvNoTransactions.setVisibility(View.VISIBLE);
                 } else {
-                    // Build a simple list of transactions
-                    StringBuilder transactionList = new StringBuilder();
-                    SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
-
-                    for (Transaction transaction : transactions) {
-                        String date = dateFormat.format(new Date(transaction.getDate()));
-                        String sign = transaction.getType().equals("Expense") ? "-" : "+";
-
-                        transactionList.append(String.format(Locale.getDefault(),
-                                "%s KES %.2f - %s\n%s • %s\n\n",
-                                sign,
-                                transaction.getAmount(),
-                                transaction.getDescription(),
-                                transaction.getCategory(),
-                                date
-                        ));
-                    }
-
-                    tvNoTransactions.setText(transactionList.toString());
+                    rvTransactions.setVisibility(View.VISIBLE);
+                    tvNoTransactions.setVisibility(View.GONE);
+                    adapter.setTransactions(transactions);
                 }
+            });
+        });
+    }
 
-                // TODO: Calculate today and week spending (we'll do this next)
-                tvTodaySpending.setText("KES 0.00");
-                tvWeekSpending.setText("KES 0.00");
+    // Helper method to get today's start timestamp (midnight)
+    private long getTodayStartTimestamp() {
+        java.util.Calendar calendar = java.util.Calendar.getInstance();
+        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        calendar.set(java.util.Calendar.MINUTE, 0);
+        calendar.set(java.util.Calendar.SECOND, 0);
+        calendar.set(java.util.Calendar.MILLISECOND, 0);
+        return calendar.getTimeInMillis();
+    }
+
+    // Helper method to get this week's start timestamp (Monday)
+    private long getWeekStartTimestamp() {
+        java.util.Calendar calendar = java.util.Calendar.getInstance();
+
+        // Set to Monday of current week
+        calendar.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY);
+        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        calendar.set(java.util.Calendar.MINUTE, 0);
+        calendar.set(java.util.Calendar.SECOND, 0);
+        calendar.set(java.util.Calendar.MILLISECOND, 0);
+
+        return calendar.getTimeInMillis();
+    }
+
+    private void showDeleteConfirmationDialog(Transaction transaction) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Transaction")
+                .setMessage(String.format("Delete %s - KES %.2f?",
+                        transaction.getDescription(),
+                        transaction.getAmount()))
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    deleteTransaction(transaction);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void deleteTransaction(Transaction transaction) {
+        executorService.execute(() -> {
+            database.transactionDao().delete(transaction);
+
+            runOnUiThread(() -> {
+                // Reload transactions to update the list
+                loadTransactions();
+
+                // Show confirmation
+                android.widget.Toast.makeText(this, "Transaction deleted", android.widget.Toast.LENGTH_SHORT).show();
             });
         });
     }
