@@ -271,29 +271,41 @@ public class MpesaMessagesActivity extends AppCompatActivity {
                                  MpesaMessage message, int position) {
         executorService.execute(() -> {
 
-            android.util.Log.d("MpesaImport", "Saving transaction: " + parsed.description + ", Amount: " + parsed.amount);
+            // Check if this transaction already exists
+            if (parsed.mpesaCode != null && !parsed.mpesaCode.isEmpty()) {
+                int count = database.transactionDao().countByMpesaCode(parsed.mpesaCode);
+                if (count > 0) {
+                    android.util.Log.d("MpesaImport", "Transaction " + parsed.mpesaCode + " already exists - skipping");
 
-            // Create transaction from parsed data
+                    runOnUiThread(() -> {
+                        adapter.markAsImported(position);
+                        Toast.makeText(this, "Transaction already imported", Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+            }
+
+            android.util.Log.d("MpesaImport", "Saving transaction: " + parsed.description +
+                    ", Amount: " + parsed.amount + ", Code: " + parsed.mpesaCode);
+
+            // Create transaction with M-Pesa code
             Transaction transaction = new Transaction(
                     parsed.amount,
                     parsed.description,
                     parsed.category,
                     parsed.type,
-                    message.getDate()
+                    message.getDate(),
+                    parsed.mpesaCode
             );
 
             // Save to database
             database.transactionDao().insert(transaction);
 
-            // ADD THIS LOG
             android.util.Log.d("MpesaImport", "Transaction saved successfully!");
 
             runOnUiThread(() -> {
-                // Mark as imported
                 adapter.markAsImported(position);
-
-                Toast.makeText(this, "Transaction imported successfully!",
-                        Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Transaction imported successfully!", Toast.LENGTH_SHORT).show();
             });
         });
     }
@@ -302,7 +314,7 @@ public class MpesaMessagesActivity extends AppCompatActivity {
 //        List<MpesaMessage> unimported = adapter.getUnimportedMessages();
 //
 //        if (unimported.isEmpty()) {
-//            Toast.makeText(this, "All messages already imported", Toast.LENGTH_SHORT).show();
+//            Toast.makeText(this, "All messages already imported", Toast.LENGTH_SHORT).show();n
 //            return;
 //        }
 //
@@ -349,6 +361,21 @@ public class MpesaMessagesActivity extends AppCompatActivity {
                     continue;
                 }
 
+                // ADD THIS - Check for duplicate before category check
+                if (parsed.mpesaCode != null && !parsed.mpesaCode.isEmpty()) {
+                    int count = database.transactionDao().countByMpesaCode(parsed.mpesaCode);
+                    if (count > 0) {
+                        android.util.Log.d("MpesaImport", "Message " + (i + 1) + " already imported - skipping");
+
+                        // Mark as imported in UI
+                        final int pos = adapter.getMessages().indexOf(message);
+                        if (pos >= 0) {
+                            runOnUiThread(() -> adapter.markAsImported(pos));
+                        }
+                        continue;
+                    }
+                }
+
                 // If category is null, skip (needs manual categorization)
                 if (parsed.category == null) {
                     failCount++;
@@ -363,7 +390,8 @@ public class MpesaMessagesActivity extends AppCompatActivity {
                             parsed.description,
                             parsed.category,
                             parsed.type,
-                            message.getDate()
+                            message.getDate(),
+                            parsed.mpesaCode
                     );
 
                     database.transactionDao().insert(transaction);

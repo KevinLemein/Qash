@@ -98,7 +98,7 @@ public class AddTransaction extends AppCompatActivity {
         long currentDate = System.currentTimeMillis();
 
         // Create transaction object
-        Transaction transaction = new Transaction(amount, description, category, type, currentDate);
+        Transaction transaction = new Transaction(amount, description, category, type, currentDate, null);
 
         // Save to database in background thread
         executorService.execute(() -> {

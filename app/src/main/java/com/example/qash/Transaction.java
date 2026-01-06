@@ -2,6 +2,7 @@ package com.example.qash;
 
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
+import androidx.room.ColumnInfo;
 
 @Entity(tableName = "transactions")
 public class Transaction {
@@ -15,16 +16,29 @@ public class Transaction {
     private String type;
     private long date;
 
+    @ColumnInfo(name = "mpesa_code")
+    private String mpesaCode;
+
     // Constructor
-    public Transaction(double amount, String description, String category, String type, long date) {
+    public Transaction(double amount, String description, String category, String type, long date, String mpesaCode) {
+
         this.amount = amount;
         this.description = description;
         this.category = category;
         this.type = type;
         this.date = date;
+        this.mpesaCode = mpesaCode;
     }
 
     // Getters and Setters
+    public String getMpesaCode() {
+        return mpesaCode;
+    }
+
+    public void setMpesaCode(String mpesaCode) {
+        this.mpesaCode = mpesaCode;
+    }
+
     public int getId() {
         return id;
     }

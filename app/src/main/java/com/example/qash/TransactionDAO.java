@@ -47,4 +47,12 @@ public interface TransactionDAO {
     // Delete all transactions
     @Query("DELETE FROM transactions")
     void deleteAll();
+
+    // ADD THIS - Check if M-Pesa code already exists
+    @Query("SELECT COUNT(*) FROM transactions WHERE mpesa_code = :mpesaCode")
+    int countByMpesaCode(String mpesaCode);
+
+    // Or return the transaction directly
+    @Query("SELECT * FROM transactions WHERE mpesa_code = :mpesaCode LIMIT 1")
+    Transaction findByMpesaCode(String mpesaCode);
 }
