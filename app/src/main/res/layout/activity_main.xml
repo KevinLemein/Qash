@@ -158,6 +158,14 @@
                 android:textColor="@color/textPrimary"
                 android:layout_marginBottom="12dp"/>
 
+            <Button
+                android:id="@+id/btnImportMpesa"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Import M-Pesa"
+                android:textSize="12sp"
+                android:backgroundTint="#4CAF50"/>
+
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvTransactions"
                 android:layout_width="match_parent"

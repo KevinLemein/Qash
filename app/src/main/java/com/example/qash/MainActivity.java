@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import androidx.appcompat.app.AlertDialog;
+import android.widget.Button;
 
 import java.util.List;
 import java.util.Locale;
@@ -55,6 +56,14 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(MainActivity.this, AddTransaction.class);
             startActivity(intent);
         });
+
+        // Import M-Pesa button
+        Button btnImportMpesa = findViewById(R.id.btnImportMpesa);
+        btnImportMpesa.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, MpesaMessagesActivity.class);
+            startActivity(intent);
+        });
+
     }
 
     @Override
@@ -69,10 +78,18 @@ public class MainActivity extends AppCompatActivity {
             // Get all transactions from database
             List<Transaction> transactions = database.transactionDao().getAllTransactions();
 
+            // ADD THESE DEBUG LOGS
+            android.util.Log.d("MainActivity", "=== LOADING TRANSACTIONS ===");
+            android.util.Log.d("MainActivity", "Transactions found: " + transactions.size());
+
             // Calculate totals
             double totalIncome = database.transactionDao().getTotalIncome();
             double totalExpenses = database.transactionDao().getTotalExpenses();
             double balance = totalIncome - totalExpenses;
+
+            // logs for expenses and income
+            android.util.Log.d("MainActivity", "Total Income: " + totalIncome);
+            android.util.Log.d("MainActivity", "Total Expenses: " + totalExpenses);
 
             // Calculate today's spending
             long todayStart = getTodayStartTimestamp();
