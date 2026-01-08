@@ -230,6 +230,9 @@ public class MpesaMessagesActivity extends AppCompatActivity {
                 "Dining",
                 "Government",
                 "Insurance",
+                "Personal Transfer",
+                "Withdrawal",
+                "Fuliza",
                 "Other"
         };
 

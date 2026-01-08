@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {Transaction.class, MerchantCategory.class}, version = 3, exportSchema = false)
+@Database(entities = {Transaction.class, MerchantCategory.class}, version = 4, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 
     private static volatile AppDatabase instance;
@@ -54,6 +54,13 @@ public abstract class AppDatabase extends RoomDatabase {
     private static void populateCommonMerchants(SupportSQLiteDatabase db) {
         db.beginTransaction();
         try {
+
+            // --- MOBILE MONEY & TRANSFERS ---
+            insertMerchant(db, "SEND MONEY", "Other");
+            insertMerchant(db, "sent to", "Other");
+            insertMerchant(db, "WITHDRAW", "Other");
+            insertMerchant(db, "FULIZA", "Other");
+
             // --- BILLS & UTILITIES ---
             insertMerchant(db, "KENYA POWER", "Bills & Utilities");
             insertMerchant(db, "KPLC", "Bills & Utilities");
@@ -65,6 +72,8 @@ public abstract class AppDatabase extends RoomDatabase {
 
             // --- AIRTIME & DATA ---
             insertMerchant(db, "SAFARICOM DATA", "Airtime & Data");
+            insertMerchant(db, "DATA BUNDLES", "Airtime & Data");
+            insertMerchant(db, "AIRTIME", "Airtime & Data");
             insertMerchant(db, "AIRTEL", "Airtime & Data");
             insertMerchant(db, "TELKOM", "Airtime & Data");
             insertMerchant(db, "FAIBA", "Airtime & Data");
@@ -75,7 +84,8 @@ public abstract class AppDatabase extends RoomDatabase {
             insertMerchant(db, "QUICKMART", "Food & Groceries");
             insertMerchant(db, "CHANDARANA", "Food & Groceries");
             insertMerchant(db, "CLEANSHELF", "Food & Groceries");
-            insertMerchant(db, "MATTRESS", "Food & Groceries");
+            insertMerchant(db, "EASTMATT", "Food & Groceries");
+            insertMerchant(db, "JAZA", "Food & Groceries");
 
             // --- DINING & TAKEOUT ---
             insertMerchant(db, "JAVA HOUSE", "Dining");

@@ -59,6 +59,12 @@ public class AddTransaction extends AppCompatActivity {
                 "Airtime & Data",
                 "Shopping",
                 "Health",
+                "Dining",
+                "Government",
+                "Insurance",
+                "Personal Transfer",
+                "Withdrawal",
+                "Fuliza",
                 "Other"
         };
 

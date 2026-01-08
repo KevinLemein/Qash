@@ -93,13 +93,23 @@ public class TransactionAdapter extends RecyclerView.Adapter<TransactionAdapter.
             case "Bills & Utilities":
                 return "💡";
             case "Entertainment":
-                return "🎬";
+                return "🍿";
             case "Airtime & Data":
                 return "📱";
             case "Shopping":
                 return "🛍️";
             case "Health":
                 return "🏥";
+            case "Personal Transfer":
+                return "👤";
+            case "Withdrawal":
+                return "💸";
+            case "Fuliza":
+                return "💳";
+            case "Dining":
+                return "🍽️";
+            case "Government":
+                return "🏛️";
             default:
                 return "📦";
         }

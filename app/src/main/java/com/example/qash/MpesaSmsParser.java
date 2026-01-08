@@ -81,17 +81,111 @@ public class MpesaSmsParser {
         return 0.0;
     }
 
+//    private static void determineTypeAndDescription(String sms, ParsedTransaction result) {
+//        String smsLower = sms.toLowerCase();
+//
+//        // Check if this is a Fuliza notification SMS
+//        if (smsLower.contains("fuliza m-pesa amount is")) {
+//            // This is the second SMS - extract Fuliza info
+//            result.usedFuliza = true;
+//            result.description = "Fuliza Statement";
+//            result.type = "Expense";
+//
+//            // Extract total outstanding amount
+//            Pattern pattern = Pattern.compile("outstanding amount is Ksh\\s?([0-9,]+\\.?[0-9]*)");
+//            Matcher matcher = pattern.matcher(sms);
+//            if (matcher.find()) {
+//                String amountStr = matcher.group(1).replace(",", "");
+//                result.fulizaOutstanding = Double.parseDouble(amountStr);
+//                result.newBalance = -result.fulizaOutstanding; // Negative balance!
+//            }
+//
+//            // Extract Fuliza fee
+//            Pattern feePattern = Pattern.compile("Access Fee charged Ksh\\s?([0-9,]+\\.?[0-9]*)");
+//            Matcher feeMatcher = feePattern.matcher(sms);
+//            if (feeMatcher.find()) {
+//                String feeStr = feeMatcher.group(1).replace(",", "");
+//                result.fulizaFee = Double.parseDouble(feeStr);
+//            }
+//
+//            result.isValid = true;
+//            return;
+//        }
+//
+//        // Regular transaction types
+//        if (smsLower.contains("sent to")) {
+//            result.type = "Expense";
+//            result.description = extractRecipient(sms, "sent to");
+//        }
+//
+//
+//        // Sent money
+//        if (smsLower.contains("sent to")) {
+//            result.type = "Expense";
+//            result.description = extractRecipient(sms, "sent to");
+//        }
+//        // Received money
+//        else if (smsLower.contains("received from") || smsLower.contains("you have received")) {
+//            result.type = "Income";
+//            result.description = extractRecipient(sms, "received from");
+//        }
+//        // Withdrew cash
+//        else if (smsLower.contains("withdraw") || smsLower.contains("withdrawn")) {
+//            result.type = "Expense";
+//            result.description = "Cash Withdrawal";
+//        }
+//        // Bought airtime
+//        else if (smsLower.contains("airtime")) {
+//            result.type = "Expense";
+//            result.description = "Airtime Purchase";
+//        }
+//        // Paid to merchant (Lipa na M-Pesa)
+//        else if (smsLower.contains("paid to")) {
+//            result.type = "Expense";
+//            result.description = extractMerchant(sms, "paid to");
+//        }
+//        // Bought goods
+//        else if (smsLower.contains("bought goods")) {
+//            result.type = "Expense";
+//            result.description = extractMerchant(sms, "bought goods");
+//        }
+//        // Give customer
+//        else if (smsLower.contains("give") && smsLower.contains("cash")) {
+//            result.type = "Expense";
+//            result.description = "Cash Given to Customer";
+//        }
+//        // PayBill
+//        else if (smsLower.contains("paybill")) {
+//            result.type = "Expense";
+//            result.description = extractPaybillDetails(sms);
+//        }
+//        // Default
+//        else {
+//            result.type = "Expense";
+//            result.description = "M-Pesa Transaction";
+//        }
+//    }
+
     private static void determineTypeAndDescription(String sms, ParsedTransaction result) {
         String smsLower = sms.toLowerCase();
 
         // Check if this is a Fuliza notification SMS
-        if (smsLower.contains("fuliza m-pesa amount is")) {
-            // This is the second SMS - extract Fuliza info
+        if (smsLower.contains("Fuliza M-Pesa amount is")) {
+            // This is the second SMS - extract ONLY the Fuliza fee
             result.usedFuliza = true;
-            result.description = "Fuliza Statement";
+            result.description = "Fuliza Access Fee";
             result.type = "Expense";
+            result.category = "Fuliza";
 
-            // Extract total outstanding amount
+            // Extract Fuliza fee (NOT the total amount!)
+            Pattern feePattern = Pattern.compile("Access Fee charged Ksh\\s?([0-9,]+\\.?[0-9]*)");
+            Matcher feeMatcher = feePattern.matcher(sms);
+            if (feeMatcher.find()) {
+                String feeStr = feeMatcher.group(1).replace(",", "");
+                result.amount = Double.parseDouble(feeStr);
+            }
+
+            // Extract total outstanding amount for balance
             Pattern pattern = Pattern.compile("outstanding amount is Ksh\\s?([0-9,]+\\.?[0-9]*)");
             Matcher matcher = pattern.matcher(sms);
             if (matcher.find()) {
@@ -100,25 +194,11 @@ public class MpesaSmsParser {
                 result.newBalance = -result.fulizaOutstanding; // Negative balance!
             }
 
-            // Extract Fuliza fee
-            Pattern feePattern = Pattern.compile("Access Fee charged Ksh\\s?([0-9,]+\\.?[0-9]*)");
-            Matcher feeMatcher = feePattern.matcher(sms);
-            if (feeMatcher.find()) {
-                String feeStr = feeMatcher.group(1).replace(",", "");
-                result.fulizaFee = Double.parseDouble(feeStr);
-            }
-
             result.isValid = true;
             return;
         }
 
-        // Regular transaction types
-        if (smsLower.contains("sent to")) {
-            result.type = "Expense";
-            result.description = extractRecipient(sms, "sent to");
-        }
-
-
+        // Regular transaction types (First SMS)
         // Sent money
         if (smsLower.contains("sent to")) {
             result.type = "Expense";
@@ -231,6 +311,11 @@ public class MpesaSmsParser {
         String smsLower = sms.toLowerCase();
         String descLower = description.toLowerCase();
 
+        // FIRST: Check if this is a Fuliza statement
+        if (smsLower.contains("Fuliza M-Pesa amount is")) {
+            return "Fuliza";
+        }
+
         // Check database for learned merchant mappings
         try {
             MerchantCategory match = db.merchantCategoryDao().findByMerchantName(descLower);
@@ -247,7 +332,49 @@ public class MpesaSmsParser {
             e.printStackTrace();
         }
 
-        // If not found, return null (we'll ask user)
+        // DEFAULT CATEGORIZATION based on transaction type
+
+//        // Person-to-person transfers (sent money to someone with phone number)
+//        if (smsLower.contains("sent to")) {
+//            // Check if it contains a Kenyan phone number
+//            if (smsLower.contains(" 07") ||
+//                    smsLower.contains(" 254") ||
+//                    smsLower.matches(".*\\s0[17]\\d{8}.*")) {
+//                return "Personal Transfer";
+//            }
+//        }
+
+        // Cash withdrawals
+        if (smsLower.contains("withdraw")) {
+            return "Withdrawal";
+        }
+
+        // PayBill payments (usually bills)
+//        if (smsLower.contains("paybill")) {
+//            return "Bills & Utilities";
+//        }
+
+        // Buy Goods or Till Number (usually shopping)
+//        if (smsLower.contains("bought goods") || smsLower.contains("till number")) {
+//            return "Shopping";
+//        }
+
+        // Lipa na M-Pesa / Paid to merchant
+//        if (smsLower.contains("paid to")) {
+//            return "Shopping";
+//        }
+
+        // Airtime purchases
+        if (smsLower.contains("airtime")) {
+            return "Airtime & Data";
+        }
+
+        // Received money from someone
+        if (smsLower.contains("received from") || smsLower.contains("you have received")) {
+            return "Personal Transfer";
+        }
+
+        // Default fallback for everything else
         return null;
     }
 
