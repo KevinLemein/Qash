@@ -93,23 +93,97 @@ public class MainActivity extends AppCompatActivity {
         loadTransactions();
     }
 
+//    private void loadTransactions() {
+//        executorService.execute(() -> {
+//            // Get all transactions from database
+//            List<Transaction> transactions = database.transactionDao().getAllTransactions();
+//
+//            Double latestBalance = database.transactionDao().getLatestMpesaBalance();
+//            final double mpesaBalance = (latestBalance != null) ? latestBalance : 0.0;
+//
+//            // ADD THESE DEBUG LOGS
+//            android.util.Log.d("MainActivity", "=== LOADING TRANSACTIONS ===");
+//            android.util.Log.d("MainActivity", "Transactions found: " + transactions.size());
+//
+//            // Calculate totals
+//            double totalIncome = database.transactionDao().getTotalIncome();
+//            double totalExpenses = database.transactionDao().getTotalExpenses();
+//            double balance = totalIncome - totalExpenses;
+//
+//            // logs for expenses and income
+//            android.util.Log.d("MainActivity", "Total Income: " + totalIncome);
+//            android.util.Log.d("MainActivity", "Total Expenses: " + totalExpenses);
+//
+//            // Calculate today's spending
+//            long todayStart = getTodayStartTimestamp();
+//            long todayEnd = System.currentTimeMillis();
+//            List<Transaction> todayTransactions = database.transactionDao()
+//                    .getTransactionsByDateRange(todayStart, todayEnd);
+//
+//            double todaySpending = 0;
+//            for (Transaction t : todayTransactions) {
+//                if (t.getType().equals("Expense")) {
+//                    todaySpending += t.getAmount();
+//                }
+//            }
+//            final double finalTodaySpending = todaySpending;
+//
+//            // Calculate this week's spending
+//            long weekStart = getWeekStartTimestamp();
+//            List<Transaction> weekTransactions = database.transactionDao()
+//                    .getTransactionsByDateRange(weekStart, todayEnd);
+//
+//            double weekSpending = 0;
+//            for (Transaction t : weekTransactions) {
+//                if (t.getType().equals("Expense")) {
+//                    weekSpending += t.getAmount();
+//                }
+//            }
+//            final double finalWeekSpending = weekSpending;
+//
+//            // Update UI on main thread
+//            runOnUiThread(() -> {
+//
+//                // Update balance
+//                //tvBalance.setText(String.format(Locale.getDefault(), "KES %.2f", balance));
+//
+//                tvBalance.setText(String.format(Locale.getDefault(), "KES %.2f", mpesaBalance));
+//
+//                // Update today's spending
+//                tvTodaySpending.setText(String.format(Locale.getDefault(), "KES %.2f", finalTodaySpending));
+//
+//                // Update week's spending
+//                tvWeekSpending.setText(String.format(Locale.getDefault(), "KES %.2f", finalWeekSpending));
+//
+//                // Update transactions list
+//                if (transactions.isEmpty()) {
+//                    rvTransactions.setVisibility(View.GONE);
+//                    tvNoTransactions.setVisibility(View.VISIBLE);
+//                } else {
+//                    rvTransactions.setVisibility(View.VISIBLE);
+//                    tvNoTransactions.setVisibility(View.GONE);
+//                    adapter.setTransactions(transactions);
+//                }
+//            });
+//        });
+//    }
+
+
     private void loadTransactions() {
         executorService.execute(() -> {
-            // Get all transactions from database
+            // Get all transactions
             List<Transaction> transactions = database.transactionDao().getAllTransactions();
 
-            // ADD THESE DEBUG LOGS
-            android.util.Log.d("MainActivity", "=== LOADING TRANSACTIONS ===");
-            android.util.Log.d("MainActivity", "Transactions found: " + transactions.size());
+            // Get LATEST M-Pesa balance
+            Double latestBalance = database.transactionDao().getLatestMpesaBalance();
+            final double mpesaBalance = (latestBalance != null) ? latestBalance : 0.0;
 
-            // Calculate totals
-            double totalIncome = database.transactionDao().getTotalIncome();
-            double totalExpenses = database.transactionDao().getTotalExpenses();
-            double balance = totalIncome - totalExpenses;
-
-            // logs for expenses and income
-            android.util.Log.d("MainActivity", "Total Income: " + totalIncome);
-            android.util.Log.d("MainActivity", "Total Expenses: " + totalExpenses);
+            // Calculate total Fuliza debt (sum of all Fuliza fees and borrowed amounts)
+            double fulizaDebt = 0;
+            if (latestBalance != null && latestBalance < 0) {
+                fulizaDebt = Math.abs(latestBalance);  // Negative balance = Fuliza debt
+            }
+            final double finalFulizaDebt = fulizaDebt;
 
             // Calculate today's spending
             long todayStart = getTodayStartTimestamp();
@@ -138,18 +212,20 @@ public class MainActivity extends AppCompatActivity {
             }
             final double finalWeekSpending = weekSpending;
 
-            // Update UI on main thread
+            // Update UI
             runOnUiThread(() -> {
-                // Update balance
-                tvBalance.setText(String.format(Locale.getDefault(), "KES %.2f", balance));
+                // Show M-Pesa balance (could be negative)
+                if (mpesaBalance >= 0) {
+                    tvBalance.setText(String.format(Locale.getDefault(), "KES %.2f", mpesaBalance));
+                } else {
+                    // Show Fuliza debt
+                    tvBalance.setText(String.format(Locale.getDefault(), "KES %.2f (Fuliza: -%.2f)",
+                            mpesaBalance, finalFulizaDebt));
+                }
 
-                // Update today's spending
                 tvTodaySpending.setText(String.format(Locale.getDefault(), "KES %.2f", finalTodaySpending));
-
-                // Update week's spending
                 tvWeekSpending.setText(String.format(Locale.getDefault(), "KES %.2f", finalWeekSpending));
 
-                // Update transactions list
                 if (transactions.isEmpty()) {
                     rvTransactions.setVisibility(View.GONE);
                     tvNoTransactions.setVisibility(View.VISIBLE);

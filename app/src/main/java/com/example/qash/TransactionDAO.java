@@ -55,4 +55,7 @@ public interface TransactionDAO {
     // Or return the transaction directly
     @Query("SELECT * FROM transactions WHERE mpesa_code = :mpesaCode LIMIT 1")
     Transaction findByMpesaCode(String mpesaCode);
+
+    @Query("SELECT new_balance FROM transactions ORDER BY date DESC LIMIT 1")
+    Double getLatestMpesaBalance();
 }

@@ -156,27 +156,61 @@ public class MpesaMessagesActivity extends AppCompatActivity {
     }
 
 //    private void importSingleMessage(MpesaMessage message, int position) {
-//        // TODO: Parse the message and create a transaction
-//        // For now, just show a toast
-//        Toast.makeText(this, "Importing: " + message.getMessageBody().substring(0, 30) + "...",
-//                Toast.LENGTH_SHORT).show();
+//        executorService.execute(() -> {
 //
-//        adapter.markAsImported(position);
+//            // logs
+//            android.util.Log.d("MpesaImport", "Starting import for message: " + message.getMessageBody().substring(0, Math.min(50, message.getMessageBody().length())));
 //
-//        // We'll implement the actual parsing in the next step
+//            // Parse the SMS
+//            MpesaSmsParser.ParsedTransaction parsed = MpesaSmsParser.parse(message.getMessageBody(), database);
+//
+//            // another log
+//            android.util.Log.d("MpesaImport", "Parsed result - Valid: " + parsed.isValid + ", Category: " + parsed.category + ", Amount: " + parsed.amount);
+//
+//            if (!parsed.isValid) {
+//                runOnUiThread(() -> {
+//                    Toast.makeText(this, "Failed to parse transaction", Toast.LENGTH_SHORT).show();
+//                });
+//                return;
+//            }
+//
+//            // Check if this is a Fuliza statement
+//            if (parsed.usedFuliza && parsed.description.equals("Fuliza Statement")) {
+//                // This is a Fuliza notification - find the original transaction and update it
+//                executorService.execute(() -> {
+//                    // Find transaction with same M-Pesa code
+//                    // Update its balance to show negative
+//                    // For now, we'll skip importing Fuliza statements separately
+//                    android.util.Log.d("MpesaImport", "Detected Fuliza statement - Outstanding: " +
+//                            parsed.fulizaOutstanding);
+//                });
+//
+//                runOnUiThread(() -> {
+//                    adapter.markAsImported(position);
+//                    Toast.makeText(this, "Fuliza statement detected (Outstanding: KES " +
+//                                    String.format(Locale.getDefault(), "%.2f", parsed.fulizaOutstanding) + ")",
+//                            Toast.LENGTH_SHORT).show();
+//                });
+//                return;
+//            }
+//
+//            runOnUiThread(() -> {
+//                if (parsed.category == null) {
+//                    // Unknown merchant - ask user to categorize
+//                    showCategorySelectionDialog(parsed, message, position);
+//                } else {
+//                    // Known merchant - import directly
+//                    saveTransaction(parsed, message, position);
+//                }
+//            });
+//        });
 //    }
 
     private void importSingleMessage(MpesaMessage message, int position) {
         executorService.execute(() -> {
 
-            // logs
-            android.util.Log.d("MpesaImport", "Starting import for message: " + message.getMessageBody().substring(0, Math.min(50, message.getMessageBody().length())));
-
             // Parse the SMS
             MpesaSmsParser.ParsedTransaction parsed = MpesaSmsParser.parse(message.getMessageBody(), database);
-
-            // another log
-            android.util.Log.d("MpesaImport", "Parsed result - Valid: " + parsed.isValid + ", Category: " + parsed.category + ", Amount: " + parsed.amount);
 
             if (!parsed.isValid) {
                 runOnUiThread(() -> {
@@ -186,21 +220,25 @@ public class MpesaMessagesActivity extends AppCompatActivity {
             }
 
             // Check if this is a Fuliza statement
-            if (parsed.usedFuliza && parsed.description.equals("Fuliza Statement")) {
-                // This is a Fuliza notification - find the original transaction and update it
-                executorService.execute(() -> {
-                    // Find transaction with same M-Pesa code
-                    // Update its balance to show negative
-                    // For now, we'll skip importing Fuliza statements separately
-                    android.util.Log.d("MpesaImport", "Detected Fuliza statement - Outstanding: " +
-                            parsed.fulizaOutstanding);
-                });
-
+            if (parsed.usedFuliza && parsed.description.equals("Fuliza Access Fee")) {
+                // This is the second SMS - save Fuliza fee separately
                 runOnUiThread(() -> {
-                    adapter.markAsImported(position);
-                    Toast.makeText(this, "Fuliza statement detected (Outstanding: KES " +
-                                    String.format(Locale.getDefault(), "%.2f", parsed.fulizaOutstanding) + ")",
-                            Toast.LENGTH_SHORT).show();
+                    // Check if the actual transaction exists
+                    executorService.execute(() -> {
+                        Transaction actualTransaction = database.transactionDao().findByMpesaCode(parsed.mpesaCode);
+
+                        if (actualTransaction != null) {
+                            // Save Fuliza fee as separate transaction
+                            if (parsed.category == null) {
+                                parsed.category = "Fuliza";
+                            }
+
+                            saveTransaction(parsed, message, position);
+                        } else {
+                            // Actual transaction not imported yet - ask user to import it first
+                            Toast.makeText(this, "Import the actual transaction first", Toast.LENGTH_SHORT).show();
+                        }
+                    });
                 });
                 return;
             }
@@ -298,7 +336,8 @@ public class MpesaMessagesActivity extends AppCompatActivity {
                     parsed.category,
                     parsed.type,
                     message.getDate(),
-                    parsed.mpesaCode
+                    parsed.mpesaCode,
+                    parsed.newBalance
             );
 
             // Save to database
@@ -394,7 +433,8 @@ public class MpesaMessagesActivity extends AppCompatActivity {
                             parsed.category,
                             parsed.type,
                             message.getDate(),
-                            parsed.mpesaCode
+                            parsed.mpesaCode,
+                            parsed.newBalance
                     );
 
                     database.transactionDao().insert(transaction);

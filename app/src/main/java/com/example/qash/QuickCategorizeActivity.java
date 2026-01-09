@@ -138,6 +138,8 @@ public class QuickCategorizeActivity extends AppCompatActivity {
                 }
             }
 
+            double mpesaBalance = getIntent().getDoubleExtra("new_balance", 0);
+
             // Save transaction
             Transaction transaction = new Transaction(
                     amount,
@@ -145,7 +147,8 @@ public class QuickCategorizeActivity extends AppCompatActivity {
                     category,
                     finalType,
                     System.currentTimeMillis(),
-                    mpesaCode
+                    mpesaCode,
+                    mpesaBalance
             );
 
             database.transactionDao().insert(transaction);

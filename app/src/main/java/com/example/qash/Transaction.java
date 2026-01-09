@@ -19,8 +19,11 @@ public class Transaction {
     @ColumnInfo(name = "mpesa_code")
     private String mpesaCode;
 
+    @ColumnInfo(name = "new_balance")
+    private double newBalance;
+
     // Constructor
-    public Transaction(double amount, String description, String category, String type, long date, String mpesaCode) {
+    public Transaction(double amount, String description, String category, String type, long date, String mpesaCode, double newBalance) {
 
         this.amount = amount;
         this.description = description;
@@ -28,12 +31,17 @@ public class Transaction {
         this.type = type;
         this.date = date;
         this.mpesaCode = mpesaCode;
+        this.newBalance = newBalance;
     }
 
     // Getters and Setters
     public String getMpesaCode() {
         return mpesaCode;
     }
+
+    public double getNewBalance() { return newBalance;}
+
+    public void setNewBalance(double newBalance) { this.newBalance = newBalance;}
 
     public void setMpesaCode(String mpesaCode) {
         this.mpesaCode = mpesaCode;
