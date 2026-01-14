@@ -1,4 +1,4 @@
-package com.example.qash
+package com.kevinlemein.qash
 
 import org.junit.Test
 
