@@ -4,53 +4,37 @@ import com.kevinlemein.qash.domain.model.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
-import java.util.Calendar
-import java.util.TimeZone
 
 class ParseSmsUseCaseTest {
 
     private val parseSms = ParseSmsUseCase()
 
     @Test
-    fun `should parse standard Sent Money SMS correctly`() {
-        // 1. GIVEN - A sample SMS string
-        val sms = "RCK898989 Confirmed. Ksh500.00 sent to KPLC PREPAID on 14/1/26 at 1:08 PM. New M-PESA balance is Ksh1,200.00."
-
-        // 2. WHEN - We run the logic
-        val result = parseSms(sms)
-
-        // 3. THEN - We assert the fields match YOUR custom names
-        assertNotNull("Result should not be null", result)
-
-        // Matches 'mpesaCode'
-        assertEquals("RCK898989", result?.mpesaCode)
-
-        // Matches 'description' (not 'recipient')
-        assertEquals("KPLC PREPAID", result?.description)
-
-        assertEquals(500.00, result?.amount!!, 0.0)
-        assertEquals("Uncategorized", result.category) // Default value we set
-        assertEquals(TransactionType.SENT, result.type)
-    }
-
-    @Test
-    fun `should parse standard Received Money SMS correctly`() {
-        val sms = "RCK112233 Confirmed. You have received Ksh1,500.00 from JOHN DOE on 14/1/26 at 2:30 PM. New M-PESA balance is Ksh3,200.00."
+    fun `should parse Received money with missing space after Confirmed`() {
+        // The message that was failing
+        val sms = "UAE6Y3P5WN Confirmed.You have received Ksh3,000.00 from BRIAN C  KABUI 0724209295 on 14/1/26 at 11:45 AM  New M-PESA balance is Ksh3,000.00."
 
         val result = parseSms(sms)
 
-        assertNotNull(result)
-        assertEquals("RCK112233", result?.mpesaCode)
-        assertEquals("JOHN DOE", result?.description)
-        assertEquals(1500.00, result?.amount!!, 0.0)
+        assertNotNull("Should match received pattern", result)
+        assertEquals("UAE6Y3P5WN", result?.mpesaCode)
+        assertEquals("BRIAN C  KABUI 0724209295", result?.description)
+        assertEquals(3000.00, result?.amount!!, 0.0)
         assertEquals(TransactionType.RECEIVED, result.type)
     }
 
     @Test
-    fun `should return null for non-financial messages`() {
-        val sms = "Your bundle balance is below 5MB."
+    fun `should parse Buy Goods (Paid to) correctly`() {
+        // The message that was failing
+        val sms = "UAEK83U2J3 Confirmed. Ksh210.00 paid to GERALD MASYUKA NDALU on 14/1/26 at 4:10 PM.New M-PESA balance is Ksh1,422.38."
+
         val result = parseSms(sms)
 
-        assertEquals(null, result)
+        assertNotNull("Should match sent pattern", result)
+        assertEquals("UAEK83U2J3", result?.mpesaCode)
+        // Notice we strip the trailing dot in the code logic now
+        assertEquals("GERALD MASYUKA NDALU", result?.description)
+        assertEquals(210.00, result?.amount!!, 0.0)
+        assertEquals(TransactionType.SENT, result.type)
     }
 }

@@ -9,4 +9,6 @@ interface SmsRepository {
 
     // We will use this when the Sync Worker runs
     suspend fun saveTransaction(transaction: Transaction)
+
+    suspend fun syncMessages()
 }

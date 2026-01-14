@@ -8,57 +8,55 @@ import javax.inject.Inject
 
 class ParseSmsUseCase @Inject constructor() {
 
-    // Regex for "Sent" (Send Money / Paybill / Buy Goods)
-    private val sentPattern = """([A-Z0-9]+)\s+Confirmed\.\s+Ksh([0-9,]+\.[0-9]{2})\s+sent\s+to\s+(.+?)\s+on\s+(.+)""".toRegex()
+    // Regex Explanation:
+    // 1. We capture the core transaction details (Code, Amount, Recipient, Date)
+    // 2. We look for "New M-PESA balance is Ksh..." at the end to capture the Real Balance.
 
-    // Regex for "Received"
-    private val receivedPattern = """([A-Z0-9]+)\s+Confirmed\.\s+You\s+have\s+received\s+Ksh([0-9,]+\.[0-9]{2})\s+from\s+(.+?)\s+on\s+(.+)""".toRegex()
+    // Pattern: Code ... Amount ... sent/paid to ... Recipient ... on Date ... Balance
+    private val sentPattern = """^([A-Z0-9]+)\s+Confirmed\.\s+Ksh([0-9,]+\.[0-9]{2})\s+(?:sent|paid)\s+to\s+(.+?)\s+on\s+([\d/]+\s+at\s+[\d:]+\s+[AP]M).*New\s+M-PESA\s+balance\s+is\s+Ksh([0-9,]+\.[0-9]{2}).*""".toRegex()
 
-    // M-Pesa Date Format: "14/1/26 at 1:08 PM"
+    // Pattern: Code ... Received ... Amount ... from ... Recipient ... on Date ... Balance
+    private val receivedPattern = """^([A-Z0-9]+)\s+Confirmed\.?\s*You\s+have\s+received\s+Ksh([0-9,]+\.[0-9]{2})\s+from\s+(.+?)\s+on\s+([\d/]+\s+at\s+[\d:]+\s+[AP]M).*New\s+M-PESA\s+balance\s+is\s+Ksh([0-9,]+\.[0-9]{2}).*""".toRegex()
+
     private val dateFormat = SimpleDateFormat("d/M/yy 'at' h:mm a", Locale.ENGLISH)
 
     operator fun invoke(body: String): Transaction? {
-        // 1. Try parsing as a "Sent" transaction
-        sentPattern.find(body)?.let { match ->
-            val (code, amountStr, recipient, dateStr) = match.destructured
-            // FIX: Added "Uncategorized" to match the function signature
-            return createTransaction(code, amountStr, recipient, "Uncategorized", dateStr, TransactionType.SENT)
+        val cleanBody = body.replace("\n", " ").trim()
+
+        sentPattern.find(cleanBody)?.let { match ->
+            val (code, amount, recipient, date, bal) = match.destructured
+            return createTransaction(code, amount, recipient.removeSuffix("."), date, bal, TransactionType.SENT)
         }
 
-        // 2. Try parsing as a "Received" transaction
-        receivedPattern.find(body)?.let { match ->
-            val (code, amountStr, recipient, dateStr) = match.destructured
-            // FIX: Added "Uncategorized" here too
-            return createTransaction(code, amountStr, recipient, "Uncategorized", dateStr, TransactionType.RECEIVED)
+        receivedPattern.find(cleanBody)?.let { match ->
+            val (code, amount, recipient, date, bal) = match.destructured
+            return createTransaction(code, amount, recipient, date, bal, TransactionType.RECEIVED)
         }
 
-        // If no patterns match (e.g., "Failed transaction"), return null
         return null
-    } // <--- Added closing brace for invoke()
+    }
 
-    // Moved OUTSIDE invoke()
     private fun createTransaction(
         code: String,
         amountStr: String,
         description: String,
-        category: String, // This was missing in the calls above
         dateStr: String,
+        balanceStr: String, // New Argument
         type: TransactionType
     ): Transaction? {
         return try {
-            val cleanAmount = amountStr.replace(",", "").toDouble()
-            // Clean date string (remove trailing dots/spaces)
-            val cleanDateStr = dateStr.trim().removeSuffix(".")
-            val date = dateFormat.parse(cleanDateStr) ?: return null
+            val amount = amountStr.replace(",", "").toDouble()
+            val balance = balanceStr.replace(",", "").toDouble() // Parse the real balance
+            val date = dateFormat.parse(dateStr) ?: return null
 
             Transaction(
                 mpesaCode = code,
-                amount = cleanAmount,
+                amount = amount,
                 description = description.trim(),
-                category = category,
+                category = "Uncategorized",
                 date = date,
                 type = type,
-                newBalance = 0.0
+                newBalance = balance // Save it!
             )
         } catch (e: Exception) {
             e.printStackTrace()

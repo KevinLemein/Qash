@@ -1,4 +1,4 @@
-package com.example.qash.ui.theme
+package com.kevinlemein.qash.ui.theme
 
 import android.app.Activity
 import android.os.Build
