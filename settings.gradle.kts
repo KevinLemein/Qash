@@ -20,4 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Qash"
-include ':app'
+include(":app")
+ 

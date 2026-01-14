@@ -2,10 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.READ_SMS" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -16,34 +12,16 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Qash">
         <activity
-            android:name=".MpesaMessagesActivity"
-            android:exported="false" />
-        <activity
-            android:name=".AddTransaction"
-            android:exported="false" />
-        <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Qash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".QuickCategorizeActivity"
-            android:exported="false"
-            android:theme="@style/Theme.AppCompat.Light.Dialog" />
-
-        <!-- Add SMS receiver -->
-        <receiver
-            android:name=".MpesaSmsReceiver"
-            android:exported="true">
-            <intent-filter android:priority="999">
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
     </application>
 
 </manifest>
