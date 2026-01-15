@@ -10,5 +10,7 @@ interface SmsRepository {
     // We will use this when the Sync Worker runs
     suspend fun saveTransaction(transaction: Transaction)
 
+    suspend fun updateCategory(mpesaCode: String, newCategory: String)
+
     suspend fun syncMessages()
 }

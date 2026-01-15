@@ -6,7 +6,7 @@ data class Transaction(
     val mpesaCode: String,   // Matches your Entity
     val amount: Double,
     val description: String, // You preferred "description" over "recipient"
-    val category: String = "Uncategorized",
+    val category: String = "Uncategorised",
     val date: Date,          // Domain uses Date
     val type: TransactionType,
     val newBalance: Double = 0.0

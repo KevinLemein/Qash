@@ -30,6 +30,10 @@ class SmsRepositoryImpl @Inject constructor(
         dao.insertTransaction(transaction.toEntity())
     }
 
+    override suspend fun updateCategory(mpesaCode: String, newCategory: String) {
+        dao.updateCategory(mpesaCode, newCategory)
+    }
+
     // THE SYNC ENGINE
     override suspend fun syncMessages() {
         // 1. Get raw messages from "MPESA"
@@ -39,6 +43,7 @@ class SmsRepositoryImpl @Inject constructor(
         val transactions = rawMessages.mapNotNull { body ->
             parseSmsUseCase(body)
         }
+
 
         // 3. Save valid ones to Database
         // (Remember: Your DAO ignores duplicates automatically!)

@@ -16,6 +16,9 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(transactions: List<TransactionEntity>)
 
+    @Query("UPDATE transactions SET category = :newCategory WHERE mpesaCode = :mpesaCode")
+    suspend fun updateCategory(mpesaCode: String, newCategory: String)
+
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<TransactionEntity>>
 }

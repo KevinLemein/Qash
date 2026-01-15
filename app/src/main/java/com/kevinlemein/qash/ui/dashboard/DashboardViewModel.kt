@@ -93,6 +93,12 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun updateCategory(transaction: Transaction, newCategory: String) {
+        viewModelScope.launch {
+            repository.updateCategory(transaction.mpesaCode, newCategory)
+        }
+    }
+
     fun toggleBalanceVisibility() {
         val currentState = uiState.value
         // We can't modify StateFlow directly, we rely on the flow logic.

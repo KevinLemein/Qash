@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme // <--- IMPORT THIS
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,12 +25,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import com.kevinlemein.qash.domain.model.Transaction
 import com.kevinlemein.qash.domain.model.TransactionType
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
+
+val CATEGORIES = listOf(
+    "Bills & Utilities", "Food & Groceries", "Dining", "Transport",
+    "Entertainment", "Airtime & Data", "Family & Friends",
+    "Rent", "Salary", "Government", "Insurance", "Other"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,13 +46,36 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
     val context = LocalContext.current
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "KE"))
 
-    // UI State for Blurring Balance (Default is TRUE = Hidden)
-    var isBalanceHidden by remember { mutableStateOf(true) }
+    // --- DARK MODE LOGIC ---
+    val isDarkMode = isSystemInDarkTheme()
 
+    // Define colors based on the mode
+    val screenBackgroundColor = if (isDarkMode) Color(0xFF121212) else Color(0xFFF5F5F5)
+    val contentColor = if (isDarkMode) Color.White else Color.Black
+    val cardBackgroundColor = if (isDarkMode) Color(0xFF1E1E1E) else Color.White
+    val topCardColor = if (isDarkMode) Color(0xFF2C2C2C) else Color.Black // Lighter black for dark mode
+    // -----------------------
+
+    var isBalanceHidden by remember { mutableStateOf(true) }
+    var showDialog by remember { mutableStateOf(false) }
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
+
+//    val permissionLauncher = rememberLauncherForActivityResult(
+//        contract = ActivityResultContracts.RequestPermission()
+//    ) { isGranted ->
+//        if (isGranted) viewModel.syncSms()
+//    }
+
+    // Launcher for SMS AND Notification permissions
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) viewModel.syncSms()
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val smsGranted = permissions[Manifest.permission.READ_SMS] ?: false
+        val notificationGranted = permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
+
+        if (smsGranted) {
+            viewModel.syncSms()
+        }
     }
 
     Scaffold(
@@ -55,39 +86,64 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                         "Qash",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 28.sp,
-                        color = Color.Black
+                        color = contentColor // Adaptive Color
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF5F5F5),
-                    titleContentColor = Color.Black
+                    containerColor = screenBackgroundColor, // Adaptive Background
+                    titleContentColor = contentColor,
+                    actionIconContentColor = contentColor
                 ),
                 actions = {
                     IconButton(onClick = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+                        // Prepare permissions to ask
+                        val permissionsToRequest = mutableListOf<String>()
+
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+                            permissionsToRequest.add(Manifest.permission.READ_SMS)
+                        }
+                        // Only needed for Android 13+ (Tiramisu)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
+
+                        if (permissionsToRequest.isEmpty()) {
+                            // All granted! Sync now.
                             viewModel.syncSms()
                             Toast.makeText(context, "Syncing...", Toast.LENGTH_SHORT).show()
                         } else {
-                            permissionLauncher.launch(Manifest.permission.READ_SMS)
+                            // Ask for missing permissions
+                            permissionLauncher.launch(permissionsToRequest.toTypedArray())
                         }
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = Color.Black)
+                        Icon(Icons.Default.Refresh, contentDescription = "Sync")
                     }
                 }
             )
         },
-        containerColor = Color(0xFFF5F5F5)
+        containerColor = screenBackgroundColor // Adaptive Background
     ) { paddingValues ->
 
+        if (showDialog && selectedTransaction != null) {
+            CategorySelectionDialog(
+                isDarkMode = isDarkMode, // Pass theme info to dialog
+                onDismiss = { showDialog = false },
+                onCategorySelected = { category ->
+                    viewModel.updateCategory(selectedTransaction!!, category)
+                    showDialog = false
+                    Toast.makeText(context, "Updated to $category", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
         Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .padding(16.dp)
+            modifier = Modifier.padding(paddingValues).fillMaxSize().padding(16.dp)
         ) {
-            // --- MAIN CARD ---
+            // --- BALANCE CARD ---
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Black),
+                colors = CardDefaults.cardColors(containerColor = topCardColor),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
             ) {
@@ -98,26 +154,17 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Available Balance", color = Color.Gray, fontSize = 12.sp)
-
-                        // 2. THE EYE ICON
                         Icon(
                             imageVector = if (isBalanceHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "Toggle Privacy",
+                            contentDescription = "Privacy",
                             tint = Color.Gray,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clickable { isBalanceHidden = !isBalanceHidden }
+                            modifier = Modifier.size(20.dp).clickable { isBalanceHidden = !isBalanceHidden }
                         )
                     }
 
-                    // 3. BLUR LOGIC
                     val displayBalance = if (isBalanceHidden) "Ksh ****" else currencyFormat.format(uiState.currentBalance)
-
                     Text(
-                        text = displayBalance,
-                        color = Color.White,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = displayBalance, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 4.dp)
                     )
 
@@ -125,65 +172,47 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                     Divider(color = Color.DarkGray, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Stats Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text("TODAY", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "In:  ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.incomeToday)}",
-                                color = Color(0xFF00C853), fontSize = 12.sp
-                            )
-                            Text(
-                                "Out: ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.expenseToday)}",
-                                color = Color(0xFFD50000), fontSize = 12.sp
-                            )
+                            Text("In:  ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.incomeToday)}", color = Color(0xFF00C853), fontSize = 12.sp)
+                            Text("Out: ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.expenseToday)}", color = Color(0xFFD50000), fontSize = 12.sp)
                         }
-
                         Column(horizontalAlignment = Alignment.End) {
                             Text("THIS WEEK", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "In:  ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.incomeWeek)}",
-                                color = Color(0xFF00C853), fontSize = 12.sp
-                            )
-                            Text(
-                                "Out: ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.expenseWeek)}",
-                                color = Color(0xFFD50000), fontSize = 12.sp
-                            )
+                            Text("In:  ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.incomeWeek)}", color = Color(0xFF00C853), fontSize = 12.sp)
+                            Text("Out: ${if(isBalanceHidden) "***" else currencyFormat.format(uiState.expenseWeek)}", color = Color(0xFFD50000), fontSize = 12.sp)
                         }
                     }
                 }
             }
 
-            Text(
-                text = "Recent Transactions",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            Text("Recent Transactions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = contentColor, modifier = Modifier.padding(bottom = 12.dp))
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(uiState.transactions) { transaction ->
-                    TransactionItem(transaction)
+                    TransactionItem(
+                        transaction = transaction,
+                        backgroundColor = cardBackgroundColor,
+                        textColor = contentColor,
+                        onClick = {
+                            selectedTransaction = transaction
+                            showDialog = true
+                        }
+                    )
                 }
             }
         }
     }
-} // <--- THIS CLOSING BRACE WAS IN THE WRONG SPOT! IT MUST BE HERE.
+}
 
-// NOW THIS FUNCTION IS OUTSIDE DASHBOARDSCREEN
 @Composable
-fun TransactionItem(transaction: Transaction) {
+fun TransactionItem(transaction: Transaction, backgroundColor: Color, textColor: Color, onClick: () -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -191,25 +220,64 @@ fun TransactionItem(transaction: Transaction) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                Text(transaction.description, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, color = textColor)
                 Text(
-                    text = transaction.description,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    color = Color.Black,
-                    maxLines = 1
-                )
-                Text(
-                    text = SimpleDateFormat("MMM dd, h:mm a", Locale.ENGLISH).format(transaction.date),
+                    text = "${SimpleDateFormat("MMM dd", Locale.ENGLISH).format(transaction.date)} • ${transaction.category}",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = if (transaction.category == "Uncategorized") Color(0xFFD50000) else Color.Gray
                 )
             }
             Text(
                 text = "Ksh ${transaction.amount}",
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                color = if (transaction.type == TransactionType.RECEIVED) Color(0xFF00C853) else Color.Black
+                color = if (transaction.type == TransactionType.RECEIVED) Color(0xFF00C853) else textColor
             )
+        }
+    }
+}
+
+@Composable
+fun CategorySelectionDialog(isDarkMode: Boolean, onDismiss: () -> Unit, onCategorySelected: (String) -> Unit) {
+    val backgroundColor = if (isDarkMode) Color(0xFF1E1E1E) else Color.White
+    val textColor = if (isDarkMode) Color.White else Color.Black
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = backgroundColor),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Select Category",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                    items(CATEGORIES) { category ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onCategorySelected(category) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = category, fontSize = 16.sp, color = textColor)
+                        }
+                        Divider(color = if(isDarkMode) Color.DarkGray else Color(0xFFEEEEEE))
+                    }
+                }
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End).padding(top = 8.dp)
+                ) {
+                    Text("Cancel", color = Color.Red)
+                }
+            }
         }
     }
 }
